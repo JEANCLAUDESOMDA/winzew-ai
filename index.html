@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Mes tâches</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  body { margin:0; padding:16px; font-family:system-ui,sans-serif;
+    background:var(--tg-theme-bg-color,#fff); color:var(--tg-theme-text-color,#000); }
+  h1 { font-size:20px; margin:0 0 12px; }
+  .row { display:flex; gap:8px; }
+  input { flex:1; padding:10px; border-radius:10px; font-size:16px;
+    border:1px solid var(--tg-theme-hint-color,#ccc);
+    background:var(--tg-theme-secondary-bg-color,#f4f4f5); color:inherit; }
+  button.add { padding:10px 14px; border:0; border-radius:10px; font-size:16px;
+    background:var(--tg-theme-button-color,#2481cc); color:var(--tg-theme-button-text-color,#fff); }
+  ul { list-style:none; padding:0; margin:16px 0; }
+  li { display:flex; align-items:center; gap:10px; padding:12px; margin-bottom:8px;
+    border-radius:10px; background:var(--tg-theme-secondary-bg-color,#f4f4f5); }
+  li.done span { text-decoration:line-through; opacity:.5; }
+  li span { flex:1; }
+  li button { border:0; background:none; font-size:18px; color:var(--tg-theme-hint-color,#888); }
+  .hint { color:var(--tg-theme-hint-color,#888); font-size:14px; }
+</style>
+</head>
+<body>
+<h1 id="title">📝 Mes tâches</h1>
+<div class="row">
+  <input id="input" placeholder="Nouvelle tâche…" autocomplete="off">
+  <button class="add" id="add">+</button>
+</div>
+<ul id="list"></ul>
+<p class="hint" id="empty">Aucune tâche pour le moment.</p>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+if (user) document.getElementById('title').textContent = `📝 Tâches de ${user.first_name}`;
+
+let tasks = [];
+try { tasks = JSON.parse(localStorage.getItem('tasks') || '[]'); } catch (e) {}
+
+function save() { try { localStorage.setItem('tasks', JSON.stringify(tasks)); } catch (e) {} }
+
+function render() {
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const li = document.createElement('li');
+    if (t.done) li.className = 'done';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = t.done; cb.style.flex = '0';
+    cb.onchange = () => { t.done = cb.checked; save(); render(); tg.HapticFeedback.selectionChanged(); };
+    const span = document.createElement('span');
+    span.textContent = t.text;           // textContent : pas d'injection HTML
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.onclick = () => { tasks.splice(i, 1); save(); render(); };
+    li.append(cb, span, del);
+    list.appendChild(li);
+  });
+  document.getElementById('empty').style.display = tasks.length ? 'none' : 'block';
+  if (tasks.length) tg.MainButton.show(); else tg.MainButton.hide();
+}
+
+function add() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text) return;
+  tasks.push({ text, done: false });
+  input.value = '';
+  save(); render();
+  tg.HapticFeedback.impactOccurred('light');
+}
+
+document.getElementById('add').onclick = add;
+document.getElementById('input').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+
+// Bouton principal natif de Telegram : envoie la liste au bot
+tg.MainButton.setText('Envoyer au bot');
+tg.MainButton.onClick(() => tg.sendData(JSON.stringify({ tasks })));
+
+render();
+</script>
+</body>
+</html>
